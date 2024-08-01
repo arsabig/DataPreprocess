@@ -94,7 +94,7 @@ def load_ds(subset):
         try:
             ds = load_dataset('espnet/yodas', subset, split="train", streaming=True, trust_remote_code=True, )
             print('Read this >>>' , subset)
-            # print(ds)
+            print(ds)
             making_transcription(subset, ds, lm)
             # this STREAMING loading will finish quickly, can load only one by one
             #subset = 'mk000'
@@ -337,14 +337,20 @@ if __name__ == '__main__':
     #     'en125', 'en126', 'en127', 'eo000', 'es000', 'es100', 'es101', 'es102', 'es103', 'es104', 'es105', 'es106', 'et000', 
     #     'eu000']
 
-    configs = ['en110', 'en111', 'ff000', 'fj000','fo000','fy000', 'ga000', 
-        'gd000','gn000', 'gu000', 'ha000','hi100', 'ho000','ht000','hy000', 'ia000','ie000', 'ig000', 'ik000','iu000', 'jv000',
-        'kk000', 'kn000', 'ks000','ku000', 'lb000', 'lg000', 'ln000', 'lo000','mg000', 'mi000','mn000','na000', 'nv000', 
-        'om000', 'or000', 'pa000', 'ps000','qu000', 'rm000', 'rn000', 'ru001', 'rw000', 'sa000', 'sc000', 
-        'sd000','sn000', 'so000', 'st000', 'su000','tg000',  'ti000', 'tk000', 'tn000', 'tt000', 'ug000', 'uz000', 've000','vi101', 'vo000', 'wo000',
-        'yi000', 'yo000', 'zu000']
+    configs = ["as000",
+"rw000",
+"br000",
+"bo000",
+"qu000",
+"af000",
+"am000",
+"ps000"]
 
     # configs = ['es102', 'es103', 'es104', 'es105', 'es106'] 'da000', 'de000', 'de100', 
+    # 'en110' --- 140K??? 
+    # 'en111',
+    #  'ff000', 'fj000','fo000','fy000', 'ga000', 
+    #     'gd000','gn000', 'gu000', 'ru001'
 
     
 
@@ -366,8 +372,11 @@ if __name__ == '__main__':
     # # print(n_jobs)
     # Parallel(n_jobs=2, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
 
-    pool_obj = mp.Pool(2)
-    pool_obj.map(load_ds, configs)
+    # pool_obj = mp.Pool(2)
+    # pool_obj.map(load_ds, configs)
 
     # with get_context("spawn").Pool(processes=1) as pool:
     #     pool.map(load_ds, configs)
+
+    for config in configs:
+        load_ds(config)
