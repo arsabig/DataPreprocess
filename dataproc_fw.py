@@ -12,18 +12,17 @@ import soundfile as sf
 from difflib import SequenceMatcher
 from faster_whisper import WhisperModel
 from joblib import Parallel, delayed
-# from utils import get_total_gpu_memory
-MODEL_MEMORY = 5000
 from multiprocessing import cpu_count
 from multiprocessing import get_context
 from logging import getLogger
-LOG = getLogger(__name__)
-LOG.setLevel(logging.WARNING)
 import torch
 import torch.multiprocessing as mp
 import gc
 
-
+LOG = getLogger(__name__)
+LOG.setLevel(logging.WARNING)
+# from utils import get_total_gpu_memory
+MODEL_MEMORY = 5000
 languages = [
     'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo', 'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
     'es', 'et', 'eu', 'fa', 'fi', 'fo', 'fr', 'gl', 'gu', 'ha', 'haw', 'he', 'hi', 'hr', 'ht', 'hu', 'hy', 'id', 'is', 
@@ -32,7 +31,6 @@ languages = [
     'sl', 'sn', 'so', 'sq', 'sr', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tk', 'tl', 'tr', 'tt', 'uk', 'ur', 'uz', 
     'vi', 'yi', 'yo', 'zh', 'yue'
 ]
-
 savedir = r'C:\\Users\\hudso\\Downloads\\HudsonAI\\subsets\\'
 
 
@@ -117,7 +115,7 @@ def making_transcription(subset, ds, model):
                 # matched = 1
                 correct_transcriptions += 1
             
-                results_ls_filtered.append(i['id'])
+                results_ls_filtered.append(i['utt_id'])
                 save_temp(subset, results_ls_filtered)
             
             accuracy = correct_transcriptions / total
@@ -247,8 +245,8 @@ if __name__ == '__main__':
 'es102',
 'es104',
 'es105',
-# 'es103',
-# 'en108',
+'es103',
+'en108',
 'en126',
 'en107',
 'en119',
@@ -282,8 +280,8 @@ if __name__ == '__main__':
     # # LOG.info(f"n_jobs automatically set to {n_jobs}, memory: {memory} MiB")
     
     # n_jobs = min(len(configs) // 16 + 1, n_jobs)
-    # # print(n_jobs)
-    # Parallel(n_jobs=2, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
+    # print(n_jobs)
+    Parallel(n_jobs=2, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
 
     # pool_obj = mp.Pool(2)
     # pool_obj.map(load_ds, configs)
@@ -291,5 +289,5 @@ if __name__ == '__main__':
     # with get_context("spawn").Pool(processes=2) as pool:
     #     pool.map(load_ds, configs)
 
-    for config in configs:
-        load_ds(config)
+    # for config in configs:
+    #     load_ds(config)
