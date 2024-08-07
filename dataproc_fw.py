@@ -1,23 +1,21 @@
+import torch
+import torch.multiprocessing as mp
+import gc
+import sys
+import string
+import logging
 from tabnanny import verbose
 from networkx import johnson, node_disjoint_paths
 from datasets import load_dataset, Dataset
-import sys
-import string
 from tqdm import tqdm  # For progress bar
-import logging
 from difflib import SequenceMatcher
-import io
-import string
-import soundfile as sf
 from difflib import SequenceMatcher
 from faster_whisper import WhisperModel
 from joblib import Parallel, delayed
 from multiprocessing import cpu_count
 from multiprocessing import get_context
 from logging import getLogger
-import torch
-import torch.multiprocessing as mp
-import gc
+
 
 LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
@@ -202,7 +200,29 @@ def open_csv():
     #     print(i)
     #     break
 
+def process_subset():
+    configs = ['en100','es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
+'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
+'en125','en110','ru103','ru100','ru101','en105','en123','fr102','ru105','fr100','fr101','en004','ko101','pt100','pt102','en002',
+'pt101','en001','ko100','ko102','en003','en000','de100','de101','it100','ru000','vi100','id100','it101','vi101','tr100','en005',
+'es000','id101','pt103','ru106','fr103','de000','ja100','ko000','es106','ko103','nl100','fr000','en127','pt000','it000','id000',
+'ja000','de102','vi000','pl000','ru001','tr000','th000','hi000','uk100','nl000','uk000','zh000','ar000','fi000','hu000','cs000',
+'iw000','no000','sv000','el000','ro000','ca000','ta000','be000','bg000','fa000','sk000','ms000','da000','bn000','ka000','hr000',
+'sl000','ur000','eu000','lt000','sr000','et000','ky000','ml000','eo000','gl000','bs000','la000','mr000','te000','mk000','uz000',
+'cy000','is000','si000','km000','az000','kk000','sq000','so000','hi100','lv000','kn000','my000','ne000','mn000','gu000','ku000',
+'sw000','th100','hy000','pa000','ga000','mi000','jv000','ht000','ps000','am000','af000','qu000','bo000','br000','rw000','as000',
+'or000','ab000','sa000','ti000','yo000','tg000','sh000','ak000','lo000','vo000','rm000','ln000','fo000','gn000','aa000','mg000',
+'oc000','om000','zu000','ie000','xh000','tn000','lb000','ha000','sm000','ug000','ig000','ia000','yi000','wo000','sd000','tk000',
+'fy000','dz000','iu000','ho000','tt000','co000','ee000','su000','na000','ff000','ay000','ba000','gd000','fj000','ks000','sn000',
+'bh000','bi000','sc000','cr000','kl000','ik000','rn000','lg000','ve000','st000','nv000','bm000','nd000','ts000','ki000','to000',
+'sg000']
+    
+    Parallel(n_jobs=2, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
+
+
 if __name__ == '__main__':
+    process_subset()
+
     # load_ds(load_model())
 
 # if __name__ == '__main__':
@@ -241,21 +261,6 @@ if __name__ == '__main__':
     # configs = ['km000','si000','mr000',
     #       'gl000','eo000','ml000','ky000','et000','sr000','lt000','eu000','ur000','sl000','hr000','ka000','bn000']
 
-    configs = ['en100',
-'es102',
-'es104',
-'es105',
-'es103',
-'en108',
-'en126',
-'en107',
-'en119',
-'en106',
-'es101',
-'en122',
-'en121',
-'en120']
-
     # configs = ['es102', 'es103', 'es104', 'es105', 'es106'] 'da000', 'de000', 'de100', 
     # 'en110' --- 140K??? 
     # 'en111',
@@ -281,7 +286,7 @@ if __name__ == '__main__':
     
     # n_jobs = min(len(configs) // 16 + 1, n_jobs)
     # print(n_jobs)
-    Parallel(n_jobs=2, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
+    # Parallel(n_jobs=1, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
 
     # pool_obj = mp.Pool(2)
     # pool_obj.map(load_ds, configs)
@@ -291,3 +296,20 @@ if __name__ == '__main__':
 
     # for config in configs:
     #     load_ds(config)
+
+# ORDER OF HOURS 
+#     'en100','es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
+# 'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
+# 'en125','en110','ru103','ru100','ru101','en105','en123','fr102','ru105','fr100','fr101','en004','ko101','pt100','pt102','en002',
+# 'pt101','en001','ko100','ko102','en003','en000','de100','de101','it100','ru000','vi100','id100','it101','vi101','tr100','en005',
+# 'es000','id101','pt103','ru106','fr103','de000','ja100','ko000','es106','ko103','nl100','fr000','en127','pt000','it000','id000',
+# 'ja000','de102','vi000','pl000','ru001','tr000','th000','hi000','uk100','nl000','uk000','zh000','ar000','fi000','hu000','cs000',
+# 'iw000','no000','sv000','el000','ro000','ca000','ta000','be000','bg000','fa000','sk000','ms000','da000','bn000','ka000','hr000',
+# 'sl000','ur000','eu000','lt000','sr000','et000','ky000','ml000','eo000','gl000','bs000','la000','mr000','te000','mk000','uz000',
+# 'cy000','is000','si000','km000','az000','kk000','sq000','so000','hi100','lv000','kn000','my000','ne000','mn000','gu000','ku000',
+# 'sw000','th100','hy000','pa000','ga000','mi000','jv000','ht000','ps000','am000','af000','qu000','bo000','br000','rw000','as000',
+# 'or000','ab000','sa000','ti000','yo000','tg000','sh000','ak000','lo000','vo000','rm000','ln000','fo000','gn000','aa000','mg000',
+# 'oc000','om000','zu000','ie000','xh000','tn000','lb000','ha000','sm000','ug000','ig000','ia000','yi000','wo000','sd000','tk000',
+# 'fy000','dz000','iu000','ho000','tt000','co000','ee000','su000','na000','ff000','ay000','ba000','gd000','fj000','ks000','sn000',
+# 'bh000','bi000','sc000','cr000','kl000','ik000','rn000','lg000','ve000','st000','nv000','bm000','nd000','ts000','ki000','to000',
+# 'sg000',
