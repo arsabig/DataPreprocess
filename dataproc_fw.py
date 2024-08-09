@@ -33,30 +33,10 @@ savedir = r'C:\\Users\\hudso\\Downloads\\HudsonAI\\subsets\\'
 
 
 def load_ds(subset):
-    # configs = ['aa000', 'ab000', 'af000', 'ak000', 'am000', 'ar000', 'as000', 'ay000', 'az000', 'ba000', 'be000', 'bg000',
-    # 'bh000', 'bi000', 'bm000', 'bn000', 'bo000', 'br000', 'bs000', 'ca000', 'co000', 'cr000', 'cs000', 'cy000', 
-    # 'da000', 'de000', 'de100', 'de101', 'de102', 'dz000', 'ee000', 'el000', 'en000', 'en001', 'en002', 'en003', 'en004', 
-    # 'en005', 'en100', 'en101', 'en102', 'en103', 'en104', 'en105', 'en106', 'en107', 'en108', 'en109', 'en110', 'en111', 
-    # 'en112', 'en113', 'en114', 'en115', 'en116', 'en117', 'en118', 'en119', 'en120', 'en121', 'en122', 'en123', 'en124', 
-    # 'en125', 'en126', 'en127', 'eo000', 'es000', 'es100', 'es101', 'es102', 'es103', 'es104', 'es105', 'es106', 'et000', 
-    # 'eu000', 'fa000', 'ff000', 'fi000', 'fj000', 'fo000', 'fr000', 'fr100', 'fr101', 'fr102', 'fr103', 'fy000', 'ga000', 
-    # 'gd000', 'gl000', 'gn000', 'gu000', 'ha000', 'hi000', 'hi100', 'ho000', 'hr000', 'ht000', 'hu000', 'hy000', 'ia000', 
-    # 'id000', 'id100', 'id101', 'ie000', 'ig000', 'ik000', 'is000', 'it000', 'it100', 'it101', 'iu000', 'iw000', 'ja000', 
-    # 'ja100', 'jv000', 'ka000', 'ki000', 'kk000', 'kl000', 'km000', 'kn000', 'ko000', 'ko100', 'ko101', 'ko102', 'ko103', 
-    # 'ks000', 'ku000', 'ky000', 'la000', 'lb000', 'lg000', 'ln000', 'lo000', 'lt000', 'lv000', 'mg000', 'mi000', 'mk000', 
-    # 'ml000', 'mn000', 'mr000', 'ms000', 'my000', 'na000', 'nd000', 'ne000', 'nl000', 'nl100', 'no000', 'nv000', 'oc000', 
-    # 'om000', 'or000', 'pa000', 'pl000', 'ps000', 'pt000', 'pt100', 'pt101', 'pt102', 'pt103', 'qu000', 'rm000', 'rn000', 
-    # 'ro000', 'ru000', 'ru001', 'ru100', 'ru101', 'ru102', 'ru103', 'ru104', 'ru105', 'ru106', 'rw000', 'sa000', 'sc000', 
-    # 'sd000', 'sg000', 'sh000', 'si000', 'sk000', 'sl000', 'sm000', 'sn000', 'so000', 'sq000', 'sr000', 'st000', 'su000', 
-    # 'sv000', 'sw000', 'ta000', 'te000', 'tg000', 'th000', 'th100', 'ti000', 'tk000', 'tn000', 'to000', 'tr000', 'tr100', 
-    # 'ts000', 'tt000', 'ug000', 'uk000', 'uk100', 'ur000', 'uz000', 've000', 'vi000', 'vi100', 'vi101', 'vo000', 'wo000', 
-    # 'xh000', 'yi000', 'yo000', 'zh000', 'zu000']
-
     while True:
         try:
             ds = load_dataset('espnet/yodas', subset, split="train", streaming=True, trust_remote_code=True, )
             print('Read this >>>' , subset)
-            # print(ds)
             making_transcription(subset, ds, lm)
             # this STREAMING loading will finish quickly, can load only one by one
         except Exception as e: 
@@ -98,7 +78,8 @@ def making_transcription(subset, ds, model):
         with torch.no_grad():
             try:
                 segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
-            except Exception as e: print(e)
+            except Exception as e: 
+                print(e)
                 # print(f"Problems with row: {i['id']}")
                 # sys.exit(1)
 
@@ -141,13 +122,6 @@ def save_csv(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
     # import csv
     with open(savedir + subset + '_'+ str(ct) + '_'+ str(tot) + '_'+ str(round(acc,2)) + '.txt', 'w') as f:
-
-        # using csv.writer method from CSV package
-        # write = csv.writer(f)
-
-        # write.writerow(results_ls_filtered)
-     
-        # write elements of list
         # Join the list elements into a single string with a newline character
         data_to_write = '\n'.join(results_ls_filtered)
         
@@ -161,15 +135,6 @@ def save_temp(subset, results_ls_filtered):
     # import csv
 
     with open(savedir + subset + '.txt', 'w') as f:
-
-        # using csv.writer method from CSV package
-        # write = csv.writer(f)
-
-        # write.writerow(results_ls_filtered)
-     
-        # write elements of list
-        # Join the list elements into a single string with a newline character
-        # print('entra a save temp')
         data_to_write = '\n'.join(results_ls_filtered)
         
         # Write the data to the file
@@ -222,16 +187,6 @@ def process_subset():
 
 if __name__ == '__main__':
     process_subset()
-
-    # load_ds(load_model())
-
-# if __name__ == '__main__':
-#     configs = ['oc000', 'es000']  # Add your full list of subsets here
-#     lm = load_model()
-
-#     with Pool(processes=len(configs)) as pool:
-#         pool.starmap(load_ds, [(lm, subset) for subset in configs])
-
     # configs = ['ar000', 'be000', 'bg000',
     #     'bh000', 'bi000', 'bm000', 'bn000', 'bo000', 'br000', 'bs000', 'ca000', 'co000', 'cr000', 'cs000', 'cy000', 
     #     'da000', 'de000', 'de100', 'de101', 'de102', 'dz000', 'ee000', 'el000', 'en000', 'en001', 'en002', 'en003', 'en004', 
@@ -296,20 +251,3 @@ if __name__ == '__main__':
 
     # for config in configs:
     #     load_ds(config)
-
-# ORDER OF HOURS 
-#     'en100','es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
-# 'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
-# 'en125','en110','ru103','ru100','ru101','en105','en123','fr102','ru105','fr100','fr101','en004','ko101','pt100','pt102','en002',
-# 'pt101','en001','ko100','ko102','en003','en000','de100','de101','it100','ru000','vi100','id100','it101','vi101','tr100','en005',
-# 'es000','id101','pt103','ru106','fr103','de000','ja100','ko000','es106','ko103','nl100','fr000','en127','pt000','it000','id000',
-# 'ja000','de102','vi000','pl000','ru001','tr000','th000','hi000','uk100','nl000','uk000','zh000','ar000','fi000','hu000','cs000',
-# 'iw000','no000','sv000','el000','ro000','ca000','ta000','be000','bg000','fa000','sk000','ms000','da000','bn000','ka000','hr000',
-# 'sl000','ur000','eu000','lt000','sr000','et000','ky000','ml000','eo000','gl000','bs000','la000','mr000','te000','mk000','uz000',
-# 'cy000','is000','si000','km000','az000','kk000','sq000','so000','hi100','lv000','kn000','my000','ne000','mn000','gu000','ku000',
-# 'sw000','th100','hy000','pa000','ga000','mi000','jv000','ht000','ps000','am000','af000','qu000','bo000','br000','rw000','as000',
-# 'or000','ab000','sa000','ti000','yo000','tg000','sh000','ak000','lo000','vo000','rm000','ln000','fo000','gn000','aa000','mg000',
-# 'oc000','om000','zu000','ie000','xh000','tn000','lb000','ha000','sm000','ug000','ig000','ia000','yi000','wo000','sd000','tk000',
-# 'fy000','dz000','iu000','ho000','tt000','co000','ee000','su000','na000','ff000','ay000','ba000','gd000','fj000','ks000','sn000',
-# 'bh000','bi000','sc000','cr000','kl000','ik000','rn000','lg000','ve000','st000','nv000','bm000','nd000','ts000','ki000','to000',
-# 'sg000',
