@@ -21,6 +21,7 @@ LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
 # from utils import get_total_gpu_memory
 MODEL_MEMORY = 5000
+limit_rows = 100000 # limit for first x rows in the dataset
 languages = [
     'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo', 'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
     'es', 'et', 'eu', 'fa', 'fi', 'fo', 'fr', 'gl', 'gu', 'ha', 'haw', 'he', 'hi', 'hr', 'ht', 'hu', 'hy', 'id', 'is', 
@@ -104,6 +105,8 @@ def making_transcription(subset, ds, model):
             # gc.collect()
             # break #just test all subsets
             # state_dict = ds.state_dict()
+            if total > limit_rows:
+                break
             
     final_accuracy = correct_transcriptions / total
     # logging.info(f"Final Accuracy: {final_accuracy:.2%}")
