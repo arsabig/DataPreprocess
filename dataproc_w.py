@@ -123,9 +123,6 @@ def making_transcription(subset, ds, pipe):
     for i in tqdm(ds, desc=f"Processing {subset} Audio Samples"):
         audio_dict = dict(i['audio'])        
         with torch.no_grad():
-            try:
-                result = pipe(i['audio'], generate_kwargs={"language": language})
-            except Exception as e: print(e)
                 # print(f"Problems with row: {i['id']}")
                 # sys.exit(1)
 
