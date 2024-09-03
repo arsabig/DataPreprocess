@@ -9,7 +9,7 @@ from tqdm import tqdm
 from multiprocessing import cpu_count
 import glob
 import argparse
-from utils import get_total_gpu_memory
+# from utils import get_total_gpu_memory
 import logging
 from faster_whisper import WhisperModel
 from faster_whisper.audio import decode_audio
@@ -77,9 +77,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_gpu", type=str, default='0', help="")
     parser.add_argument('--in_dir', type=str,
-                        default='/mnt/hdd2/home/donggeon_lee/datasets/voice_actor-44k')
+                        default=r'E:\yodas\datasets\downloads\extracted\ff6b67b9ac90fb9f2675775231cb6437dfee1bcda76d7f514c034eb1a6b1a4cc\00000017')
     parser.add_argument('--out_dir_root', type=str,
-                        default='/mnt/hdd2/home/donggeon_lee/datasets/ppg')
+                        default=r'E:\yodas')
     parser.add_argument('--symbol', type=str, default=None)
     args = parser.parse_args()
     sub_folder_list = os.listdir(args.in_dir)

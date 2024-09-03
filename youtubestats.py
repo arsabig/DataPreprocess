@@ -37,23 +37,30 @@ def get_video_data(driver, base_url):
     
     # Extract video links
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-    video_links = [a['href'] for a in soup.select('a.video-link-selector')]  # Update the selector based on the actual HTML
-    
+    video_links = [a['href'] for a in soup.select('div.videos-grid a')]  # Update the selector based on the actual HTML
+
     video_data = []
+    i = 0
     
     for link in video_links:
+        if i == 1:
+            break
+        i +=1
         video_page_url = f"https://www.viewstats.com{link}"
         driver.get(video_page_url)
         time.sleep(2)  # Wait for the page to load
         
         # Extract data from the video page
         soup = BeautifulSoup(driver.page_source, 'html.parser')
-        title = soup.find('h1', class_='title-class').text
-        thumbnail = soup.find('img', class_='thumbnail-class')['src']
-        est_revenue = soup.find('div', class_='revenue-class').text
-        views_per_hour = soup.find('div', class_='views-hour-class').text
-        thumbnail_changes = soup.find('div', class_='thumbnail-changes-class').text
-        title_changes = soup.find('div', class_='title-changes-class').text
+        title = soup.find('p', class_='breakdown-title').text
+        thumbnail = soup.find('img', class_='thumbnail-changes-image')['src']
+        est_revenue = soup.find('p', class_='tab-title-views').text
+        views_per_hour = soup.find('p', class_='tab-title-views').text
+        thumbnail_changes = [img['src'] for img in soup.find_all('img', class_='thumbnail-changes-image')]
+        title_changes = [tag.text for tag in soup.find_all('p', class_='large-tag')]
+
+        # thumbnail_changes = soup.find('div', class_='thumbnail-changes-class').text
+        # title_changes = soup.find('p', class_='video-title').text
         
         video_data.append({
             'Title': title,
@@ -75,13 +82,13 @@ def get_similar_channels(driver, base_url):
     # Extract similar channels data
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     channels = []
-    for row in soup.select('table.similar-channels-table-selector tr'):
-        cols = row.find_all('td')
-        if len(cols) > 1:
-            channel_name = cols[0].text.strip()
-            similarity_score = cols[1].text.strip()
-            channels.append({'Channel Name': channel_name, 'Similarity Score': similarity_score})
-    
+    for row in soup.select('.similar-channels-row'):
+    # Extract the channel name
+        name = row.select_one('.vs-item-channel-name').get_text(strip=True)
+    # Extract the similarity score
+        similarity_score = row.select_one('.vs-score').get_text(strip=True)
+    # Add to the list as a dictionary
+        channels.append({"name": name, "similarity_score": similarity_score})
     return channels
 
 # Get channelytics data
@@ -98,8 +105,10 @@ similar_channels = get_similar_channels(driver, base_url)
 df_video = pd.DataFrame(video_data)
 df_channels = pd.DataFrame(similar_channels)
 
-df_video.to_csv(f'{channel_name}_videos.csv', index=False)
-df_channels.to_csv(f'{channel_name}_similar_channels.csv', index=False)
+df_video['Similar Channels'] = [df_channels.to_dict('records')] * len(df_video)
+
+# Save the combined DataFrame
+df_video.to_csv(f'{channel_name}_videos_with_similar_channels.csv', index=False)
 
 # Close the driver
 driver.quit()

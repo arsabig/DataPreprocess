@@ -1,5 +1,4 @@
 import os
-from tracemalloc import start
 import torch
 import torch.multiprocessing as mp
 import gc
@@ -10,8 +9,9 @@ import pickle
 import argparse
 import soundfile as sf
 import io
-from pathlib import Path
+from tracemalloc import start
 from multiprocessing import Pool
+from pathlib import Path
 from tabnanny import verbose
 from networkx import johnson, node_disjoint_paths
 from datasets import load_dataset, Dataset, Audio
@@ -23,27 +23,15 @@ from joblib import Parallel, delayed
 from multiprocessing import cpu_count
 from multiprocessing import get_context
 from logging import getLogger
+# from torch.utils.data import DataLoader
+# import os
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=xxx'
 
 LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
-MODEL_MEMORY = 5000
 # from utils import get_total_gpu_memory
-       # Execute in parallel
-memory = torch.cuda.mem_get_info(device='cuda:0')[0]//1024 ** 2
-n_jobs = min(
-    max(
-        memory
-        // MODEL_MEMORY
-        if memory is not None
-        else 1,
-        1,
-    ),
-    cpu_count(),
-) 
-# LOG.info(f"n_jobs automatically set to {n_jobs}, memory: {memory} MiB")
 
-# n_jobs = min(len(configs) // 16 + 1, n_jobs)
-
+# MODEL_MEMORY = 5000
 limit_rows = 100 # limit for first x rows in the dataset
 languages = [
     'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo', 'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
@@ -55,13 +43,11 @@ languages = [
 ]
 savedir = r'E:\\yodas\\' #external HD
 dir = os.getcwd() + "\\"
-cache_dir = r"E:/yodas/datasets"
 
 def load_ds(subset):
     while True:
         try:
-            ds = load_dataset('espnet/yodas', subset, split="train", trust_remote_code=True, 
-                              cache_dir=cache_dir, streaming=streamingvar) # num_proc =
+            ds = load_dataset('espnet/yodas', subset, split="train", trust_remote_code=True, cache_dir="E:/yodas/datasets", streaming=streamingvar) #cache_dir="D:/Data/yodasDS/datasets", streaming=True
             # assert ds.n_shards == 2
             # state_dic = {'shard_idx': 0, 'shard_example_idx': 50000}
             # ds.load_state_dict(state_dic)
@@ -69,8 +55,9 @@ def load_ds(subset):
             # dl = DataLoader(ds, num_workers=2)
             # ds.map(lambda x: making_transcription2(subset, x, lm), num_proc=1)
             making_transcription(ds)
-            # pool = Pool(2)
-            # pool.map(making_transcription,ds)
+            pool = Pool(4)
+            pool.map(making_transcription,ds)
+            # this STREAMING loading will finish quickly, can load only one by one
         except Exception as e: 
             print(e)
             continue
@@ -79,8 +66,14 @@ def load_ds(subset):
         
 def load_model():
     model_size = "large-v3"
+
     # Run on GPU with FP16
     model = WhisperModel(model_size, device="cuda", compute_type="float16")
+
+    # or run on GPU with INT8
+    # model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
+    # or run on CPU with INT8
+    # model = WhisperModel(model_size, device="cpu", compute_type="int8")
     return model
 lm = load_model()
 
@@ -133,7 +126,10 @@ def making_transcription(ds):
                 segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
             except Exception as e: 
                 print(e)
-        
+                # print(f"Problems with row: {i['id']}")
+                # sys.exit(1)
+            
+            
             expected_text = preprocess_text(i['text'])
             for segment in segments:
                 transcribed_text = segment.text
@@ -152,8 +148,8 @@ def making_transcription(ds):
             accuracy = correct_transcriptions / total
             torch.cuda.empty_cache()
 
-            if total == limit_rows:
-                break
+            # if total == limit_rows:
+            #     break
         
         # Save the current iteration number (always for local or stream)
             with open(iteration_file, 'wb') as f:
@@ -193,7 +189,9 @@ def save_csv(subset, results_ls_filtered, ct, tot, acc):
 
 def save_temp(subset, results_ls_filtered):
     # Save IDs to csv file to read later
-    with open(dir + subset + '.txt', 'w') as f:
+    # import csv
+
+    with open(savedir + subset + '.txt', 'w') as f:
         data_to_write = '\n'.join(results_ls_filtered)
         
         # Write the data to the file
@@ -207,6 +205,7 @@ def save_compressed_audio(audio_data, sample_rate):
     sf.write(buffer, audio_data, sample_rate, format='WAV', subtype='PCM_16')
     return buffer.getvalue()
 
+
 def save_current_row(state_dict, subset):
     with open(subset + '_saved_row.pkl', 'wb') as f:
         pickle.dump(state_dict, f)
@@ -216,9 +215,28 @@ def open_current_row(subset):
         loaded_dict = pickle.load(f)
         return loaded_dict
 
+def open_csv():
+    # OPEN csv file to start reading from here and stream the dataset with these IDs only
+    import csv
+
+    with open(subset + 'FW.csv', newline='') as f:
+        reader = csv.reader(f)
+        results_ls_filtered = list(reader)[0]
+
+    print(len(results_ls_filtered))
+
+
     #Original dataset in streaming is filter only for the rows that matched
+
     # THIS LINE CAN BE USED AFTER ds = load_dataset('espnet/yodas'...
     # filtered_dataset = ds.filter(lambda x: x["id"] in results_ls_filtered)
+
+    # print(filtered_dataset)
+    # print(next(iter(filtered_dataset)))
+
+    # for i in results_ls_filtered:
+    #     print(i)
+    #     break
 
 def save_dict(matched_row, subset):
     # Append the dictionary to the file
@@ -227,8 +245,7 @@ def save_dict(matched_row, subset):
 
 def process_subset(subs):
     configs = [subs]
-
-# BY SIZE            
+               
 #                ,'es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
 # 'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
 # 'en125','en110','ru103','ru100','ru101','en105','en123','fr102','ru105','fr100','fr101','en004','ko101','pt100','pt102','en002',
@@ -264,7 +281,60 @@ if __name__ == '__main__':
     streamingvar = args.stream
     
     process_subset(subset)
+    # configs = ['ar000', 'be000', 'bg000',
+    #     'bh000', 'bi000', 'bm000', 'bn000', 'bo000', 'br000', 'bs000', 'ca000', 'co000', 'cr000', 'cs000', 'cy000', 
+    #     'da000', 'de000', 'de100', 'de101', 'de102', 'dz000', 'ee000', 'el000', 'en000', 'en001', 'en002', 'en003', 'en004', 
+    #     'en005', 'en100', 'en101', 'en102', 'en103', 'en104', 'en105', 'en106', 'en107', 'en108', 'en109', 'en110', 'en111', 
+    #     'en112', 'en113', 'en114', 'en115', 'en116', 'en117', 'en118', 'en119', 'en120', 'en121', 'en122', 'en123', 'en124', 
+    #     'en125', 'en126', 'en127', 'eo000', 'es000', 'es100', 'es101', 'es102', 'es103', 'es104', 'es105', 'es106', 'et000', 
+    #     'eu000', 'fa000',  'fi000',  'fr000', 'fr100', 'fr101', 'fr102', 'fr103',  'gl000',  'hi000',  'hr000',  'hu000',  
+    #     'id000', 'id100', 'id101',  'is000', 'it000', 'it100', 'it101', 'iw000', 'ja000', 
+    #     'ja100',  'ka000', 'ki000',  'kl000', 'km000', 'ko000', 'ko100', 'ko101', 'ko102', 'ko103', 
+    #      'ky000', 'la000', 'lt000', 'lv000',  'mk000', 
+    #     'ml000',  'mr000', 'ms000', 'my000',  'nd000', 'ne000', 'nl000', 'nl100', 'no000','oc000', 
+    #     'pl000',  'pt000', 'pt100', 'pt101', 'pt102', 'pt103',  
+    #     'ro000', 'ru000','ru100', 'ru101', 'ru102', 'ru103', 'ru104', 'ru105', 'ru106',  'sg000', 'sh000', 'si000', 'sk000', 'sl000', 'sm000',  'sq000', 'sr000', 
+    #     'sv000', 'sw000', 'ta000', 'te000', 'th000', 'th100','to000', 'tr000', 'tr100', 
+    #     'ts000', 'uk000', 'uk100', 'ur000',  'vi000', 'vi100',  
+    #     'xh000', 'zh000']
+    # configs = ['oc000','xh000', 'bo000','sm000','sh000','kl000','bo000','bi000','bh000']  # Add your full list of subsets here
+    # configs = ['is000', 'bs000']
+    # configs = ['km000'] # SLOW
+    # configs = [ 
+    #     'de101', 'de102', 'dz000', 'ee000', 'el000', 'en000', 'en001', 'en002', 'en003', 'en004', 
+    #     'en005', 'en100', 'en101', 'en102', 'en103', 'en104', 'en105', 'en106', 'en107', 'en108', 'en109', 'en110', 'en111', 
+    #     'en112', 'en113', 'en114', 'en115', 'en116', 'en117', 'en118', 'en119', 'en120', 'en121', 'en122', 'en123', 'en124', 
+    #     'en125', 'en126', 'en127', 'eo000', 'es000', 'es100', 'es101', 'es102', 'es103', 'es104', 'es105', 'es106', 'et000', 
+    #     'eu000']
 
+    # configs = ['km000','si000','mr000',
+    #       'gl000','eo000','ml000','ky000','et000','sr000','lt000','eu000','ur000','sl000','hr000','ka000','bn000']
+
+    # configs = ['es102', 'es103', 'es104', 'es105', 'es106'] 'da000', 'de000', 'de100', 
+    # 'en110' --- 140K??? 
+    # 'en111',
+    #  'ff000', 'fj000','fo000','fy000', 'ga000', 
+    #     'gd000','gn000', 'gu000', 'ru001'
+    #  'rw000', 'sa000', 'sc000', 
+        # 'sd000','sn000', 'so000', 'st000', 'su000','tg000',  'ti000', 'tk000', 'tn000', 'tt000', 'ug000', 'uz000', 've000',
+        # 'vi101', --- problems
+
+    #     # Execute in parallel
+    # memory = torch.cuda.mem_get_info(device='cuda:0')[0]//1024 ** 2
+    # n_jobs = min(
+    #     max(
+    #         memory
+    #         // MODEL_MEMORY
+    #         if memory is not None
+    #         else 1,
+    #         1,
+    #     ),
+    #     cpu_count(),
+    # ) 
+    # # LOG.info(f"n_jobs automatically set to {n_jobs}, memory: {memory} MiB")
+    
+    # n_jobs = min(len(configs) // 16 + 1, n_jobs)
+    # print(n_jobs)
     # Parallel(n_jobs=1, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
 
     # pool_obj = mp.Pool(2)
