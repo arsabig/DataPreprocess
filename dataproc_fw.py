@@ -62,12 +62,7 @@ def load_ds(subset):
         try:
             ds = load_dataset('espnet/yodas', subset, split="train", trust_remote_code=True, 
                               cache_dir=cache_dir, streaming=streamingvar) # num_proc =
-            # assert ds.n_shards == 2
-            # state_dic = {'shard_idx': 0, 'shard_example_idx': 50000}
-            # ds.load_state_dict(state_dic)
             print('Process subset >>>' , subset)
-            # dl = DataLoader(ds, num_workers=2)
-            # ds.map(lambda x: making_transcription2(subset, x, lm), num_proc=1)
             making_transcription(ds)
             # pool = Pool(2)
             # pool.map(making_transcription,ds)
@@ -109,8 +104,9 @@ def making_transcription(ds):
             state_dict = open_current_row(subset)
         else:
             state_dict = ds.state_dict()
-            print('SAVED CHECKPOINT: ', state_dict)
-            ds.load_state_dict(state_dict)
+
+        print('SAVED CHECKPOINT: ', state_dict)
+        ds.load_state_dict(state_dict)
     else:
         if iteration_file.is_file():
             with open(iteration_file, 'rb') as f:
@@ -120,7 +116,7 @@ def making_transcription(ds):
             rows_tofinish = list(range(start_iteration,ds.num_rows))
             ds = ds.select(rows_tofinish)
             total = start_iteration
-            print('SAVED CHECKPOINT: ', total)
+        print('SAVED CHECKPOINT: ', total)
 
     for i in tqdm(ds, desc=f"Processing {subset} Audio Samples"):
         matched_row = {}
@@ -149,6 +145,7 @@ def making_transcription(ds):
             if transcribed_text == expected_text:  # If texts match!
                 correct_transcriptions += 1
                 results_ls_filtered.append(i['utt_id'])
+                
                 save_temp(subset, results_ls_filtered)
                 audio_compressed = save_compressed_audio(audio_array, i['audio']['sampling_rate'])
                 matched_row = {'id': i['id'], 'utt_id': i['utt_id'], 'text': i['text'], 'audio': audio_compressed}
@@ -167,25 +164,24 @@ def making_transcription(ds):
       
     # Calculate final accuracy and save results
     final_accuracy = correct_transcriptions / total
-    save_csv(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
+    save_results(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
     save_ds(subset)  # SAVE DICTIONARY TO DISK, REQUIRES SPACE
 
 def save_ds(subset):
     metadatas = []
     # Loading all objects from the file
-    with open(subset + '_data.pkl', 'rb') as file:
-        while True:
-            try:
-                metadatas.append(pickle.load(file))
-            except EOFError:
-                break
-    if metadatas[0] == {}:
-        print('No rows to save')
+    try:
+        file = open(subset + '_data.pkl', 'rb')
+    except FileNotFoundError:
+        print('_data file not found')
     else:
-        loaded_data = Dataset.from_list(metadatas)
-        loaded_data.save_to_disk(savedir + subset)   
+        with file:
+            metadatas.append(pickle.load(file))
+            loaded_data = Dataset.from_list(metadatas)
+            loaded_data.save_to_disk(savedir + subset)
+            print('Dataset saved successfully')
 
-def save_csv(subset, results_ls_filtered, ct, tot, acc):
+def save_results(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
     # import csv
     with open(savedir + subset + '_'+ str(ct) + '_'+ str(tot) + '_'+ str(round(acc,2)) + '.txt', 'w') as f:
@@ -195,7 +191,7 @@ def save_csv(subset, results_ls_filtered, ct, tot, acc):
         # Write the data to the file
         f.write(data_to_write)
         
-        print("File written successfully")
+        print("Results file written successfully")
 
 def save_temp(subset, results_ls_filtered):
     # Save IDs to csv file to read later
@@ -252,7 +248,6 @@ def process_subset(subs):
 # 'sg000']
     
     Parallel(n_jobs=1, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

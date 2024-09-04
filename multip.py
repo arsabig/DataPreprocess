@@ -18,6 +18,7 @@ MODEL_MEMORY = 5000
 LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
 def build_from_path(in_dir, out_dir, args, n_jobs=None):
+    print('entra aca')
     args.out_dir = out_dir
     if n_jobs is None:
         # add cpu_count() to avoid SIGKILL
@@ -77,9 +78,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--n_gpu", type=str, default='0', help="")
     parser.add_argument('--in_dir', type=str,
-                        default=r'E:\yodas\datasets\downloads\extracted\ff6b67b9ac90fb9f2675775231cb6437dfee1bcda76d7f514c034eb1a6b1a4cc\00000017')
+                        default=r'C:\Users\hudso\Downloads\00000000')
     parser.add_argument('--out_dir_root', type=str,
-                        default=r'E:\yodas')
+                        default=r'C:\Users\hudso\Downloads\qui')
     parser.add_argument('--symbol', type=str, default=None)
     args = parser.parse_args()
     sub_folder_list = os.listdir(args.in_dir)
