@@ -116,6 +116,12 @@ def making_transcription(ds):
             with open(iteration_file, 'rb') as f:
                 start_iteration = pickle.load(f)
 
+            # Set ds to start with the last row executed
+            rows_tofinish = list(range(start_iteration,ds.num_rows))
+            ds = ds.select(rows_tofinish)
+            total = start_iteration
+            print('SAVED CHECKPOINT: ', total)
+
     for i in tqdm(ds, desc=f"Processing {subset} Audio Samples"):
         matched_row = {}
         total += 1
@@ -152,8 +158,8 @@ def making_transcription(ds):
             accuracy = correct_transcriptions / total
             torch.cuda.empty_cache()
 
-            if total == limit_rows:
-                break
+            # if total == limit_rows:
+            #     break
         
         # Save the current iteration number (always for local or stream)
             with open(iteration_file, 'wb') as f:
