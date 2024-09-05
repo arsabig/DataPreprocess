@@ -162,16 +162,17 @@ def making_transcription(ds):
 def save_ds(subset):
     metadatas = []
     # Loading all objects from the file
-    try:
-        file = open(subset + '_data.pkl', 'rb')
-    except FileNotFoundError:
-        print('_data file not found')
-    else:
-        with file:
-            metadatas.append(pickle.load(file))
-            loaded_data = Dataset.from_list(metadatas)
-            loaded_data.save_to_disk(savedir + subset)
-            print('Dataset saved successfully')
+    with open(subset + '_data.pkl', 'rb') as file:
+        while True:
+            try:
+                metadatas.append(pickle.load(file))
+            except EOFError:
+                break
+            except FileNotFoundError:
+                break
+    loaded_data = Dataset.from_list(metadatas)
+    loaded_data.save_to_disk(savedir + subset)
+    print('Dataset saved successfully')
 
 def save_results(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
