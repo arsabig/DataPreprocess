@@ -11,6 +11,7 @@ import io
 from pathlib import Path
 from multiprocessing import Pool, cpu_count, get_context
 from datasets import load_dataset, Dataset, Audio
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from tqdm import tqdm  # For progress bar
 from faster_whisper import WhisperModel
 from joblib import Parallel, delayed
@@ -65,10 +66,31 @@ def load_ds(subset):
             break
         
 def load_model():
-    model_size = "large-v3"
-    # Run on GPU with FP16
-    model = WhisperModel(model_size, device="cuda", compute_type="float16")
-    return model
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+    model_id = "openai/whisper-large-v3"
+
+    model = AutoModelForSpeechSeq2Seq.from_pretrained(
+        model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
+    )
+    model.to(device)
+
+    processor = AutoProcessor.from_pretrained(model_id)
+
+    pipe = pipeline(
+        "automatic-speech-recognition",
+        model=model,
+        tokenizer=processor.tokenizer,
+        feature_extractor=processor.feature_extractor,
+        max_new_tokens=128,                                                      
+        chunk_length_s=30,
+        batch_size=1,
+        return_timestamps=False,
+        torch_dtype=torch_dtype,
+        device=device,
+    )
+    return pipe
 lm = load_model()
 
 def preprocess_text(text):
@@ -124,13 +146,12 @@ def making_transcription(ds):
 
         with torch.no_grad():
             try:
-                segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
+                result = model(audio_array, generate_kwargs={"language": language})
             except Exception as e: 
                 print(e)
         
             expected_text = preprocess_text(i['text'])
-            for segment in segments:
-                transcribed_text = segment.text
+            transcribed_text = result['text']
 
             transcribed_text = preprocess_text(transcribed_text)
 
