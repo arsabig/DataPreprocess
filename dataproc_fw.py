@@ -65,7 +65,9 @@ def load_ds(subset):
             break
         
 def load_model():
-    model_size = "large-v3"
+    # model_size = "large-v3"
+    model_size = "distil-large-v3"
+
     # Run on GPU with FP16
     model = WhisperModel(model_size, device="cuda", compute_type="float16")
     return model
