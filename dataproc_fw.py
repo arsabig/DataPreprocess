@@ -11,6 +11,7 @@ import io
 from pathlib import Path
 from multiprocessing import Pool, cpu_count, get_context
 from datasets import load_dataset, Dataset, Audio
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 from tqdm import tqdm  # For progress bar
 from faster_whisper import WhisperModel
 from joblib import Parallel, delayed
@@ -65,19 +66,46 @@ def load_ds(subset):
             break
         
 def load_model():
-    # model_size = "large-v3"
-    model_size = "distil-large-v3"
+    if whisper:
+        device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        torch_dtype = torch.float16
 
-    # Run on GPU with FP16
-    model = WhisperModel(model_size, device="cuda", compute_type="float16")
-    return model
-lm = load_model()
+        model_id = "distil-whisper/distil-large-v3"
+        # model_id = "openai/whisper-large-v3"
+
+        model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, attn_implementation="sdpa", use_safetensors=True
+        )
+        model.to(device)
+
+        processor = AutoProcessor.from_pretrained(model_id)
+
+        pipe = pipeline(
+            "automatic-speech-recognition",
+            model=model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            max_new_tokens=128,                                                      
+            chunk_length_s=30,
+            batch_size=16,
+            return_timestamps=False,
+            torch_dtype=torch_dtype,
+            device=device,
+        )
+        return pipe
+    else:
+        # model_size = "large-v3"
+        model_size = "distil-large-v3"
+
+        # Run on GPU with FP16
+        model = WhisperModel(model_size, device="cuda", compute_type="float16")
+        return model
 
 def preprocess_text(text):
     return text.strip().lower().translate(str.maketrans('', '', string.punctuation))
 
 def making_transcription(ds):
-    model = lm
+    model = load_model()
      # Configure logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     
@@ -125,14 +153,23 @@ def making_transcription(ds):
             save_current_row(state_dict, subset)
 
         with torch.no_grad():
-            try:
-                segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
-            except Exception as e: 
-                print(e)
-        
-            expected_text = preprocess_text(i['text'])
-            for segment in segments:
-                transcribed_text = segment.text
+            if whisper:
+                try:
+                    result = model(audio_array, generate_kwargs={"language": language})
+                except Exception as e: 
+                    print(e)
+            
+                expected_text = preprocess_text(i['text'])
+                transcribed_text = result['text']
+            else:
+                try:
+                    segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
+                except Exception as e: print(e)
+                # print(f"Problems with row: {i['id']}")
+                # sys.exit(1)
+                expected_text = preprocess_text(i['text'])
+                for segment in segments:
+                    transcribed_text = segment.text
 
             transcribed_text = preprocess_text(transcribed_text)
 
@@ -254,10 +291,17 @@ if __name__ == '__main__':
     parser.add_argument('--no-stream', dest='stream', action='store_false',
                     help='Set the stream value to False.')
     parser.set_defaults(stream=True)
+    parser.add_argument('--whisper', dest='whisper', action='store_true',
+                    help='To run the whisper model.')
+    parser.add_argument('--fwhisper', dest='whisper', action='store_false',
+                help='To run the faster whisper model.')
+    parser.set_defaults(stream=True)
+    parser.set_defaults(whisper=True)
     args = parser.parse_args()
 
     subset = args.sub
     streamingvar = args.stream
+    whisper = args.whisper
     
     process_subset(subset)
 
