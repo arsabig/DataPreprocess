@@ -1,12 +1,20 @@
+import os
 import torch
 import torch.multiprocessing as mp
 import gc
 import sys
 import string
 import logging
+import pickle
+import argparse
+import soundfile as sf
+import io
+from tracemalloc import start
+from multiprocessing import Pool
+from pathlib import Path
 from tabnanny import verbose
 from networkx import johnson, node_disjoint_paths
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, Audio
 from tqdm import tqdm  # For progress bar
 from difflib import SequenceMatcher
 from difflib import SequenceMatcher
@@ -16,13 +24,15 @@ from multiprocessing import cpu_count
 from multiprocessing import get_context
 from logging import getLogger
 # from torch.utils.data import DataLoader
+# import os
+# os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'max_split_size_mb=xxx'
 
 LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
 # from utils import get_total_gpu_memory
 
-MODEL_MEMORY = 5000
-limit_rows = 1000000 # limit for first x rows in the dataset
+# MODEL_MEMORY = 5000
+limit_rows = 100 # limit for first x rows in the dataset
 languages = [
     'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo', 'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
     'es', 'et', 'eu', 'fa', 'fi', 'fo', 'fr', 'gl', 'gu', 'ha', 'haw', 'he', 'hi', 'hr', 'ht', 'hu', 'hy', 'id', 'is', 
@@ -31,24 +41,22 @@ languages = [
     'sl', 'sn', 'so', 'sq', 'sr', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tk', 'tl', 'tr', 'tt', 'uk', 'ur', 'uz', 
     'vi', 'yi', 'yo', 'zh', 'yue'
 ]
-# savedir = r'C:\\Users\\hudso\\Downloads\\HudsonAI\\subsets\\'
 savedir = r'E:\\yodas\\' #external HD
-# savedir = r'D:\\yodas\\'
-
+dir = os.getcwd() + "\\"
 
 def load_ds(subset):
     while True:
         try:
-            ds = load_dataset('espnet/yodas', subset, split="train", trust_remote_code=True, cache_dir="E:/yodas/datasets") #cache_dir="D:/Data/yodasDS/datasets", streaming=True
+            ds = load_dataset('espnet/yodas', subset, split="train", trust_remote_code=True, cache_dir="E:/yodas/datasets", streaming=streamingvar) #cache_dir="D:/Data/yodasDS/datasets", streaming=True
             # assert ds.n_shards == 2
             # state_dic = {'shard_idx': 0, 'shard_example_idx': 50000}
             # ds.load_state_dict(state_dic)
-            print('Read this >>>' , subset)
+            print('Process subset >>>' , subset)
             # dl = DataLoader(ds, num_workers=2)
-            new_ds = ds.map(lambda x: making_transcription2(subset, x, lm), num_proc=2)
-            print('aqui')
-            print(new_ds)
-            # making_transcription(subset, ds, lm)
+            # ds.map(lambda x: making_transcription2(subset, x, lm), num_proc=1)
+            making_transcription(ds)
+            pool = Pool(4)
+            pool.map(making_transcription,ds)
             # this STREAMING loading will finish quickly, can load only one by one
         except Exception as e: 
             print(e)
@@ -72,20 +80,46 @@ lm = load_model()
 def preprocess_text(text):
     return text.strip().lower().translate(str.maketrans('', '', string.punctuation))
 
-def making_transcription(subset, ds, model):
-    # Configure logging
+def making_transcription(ds):
+    model = lm
+     # Configure logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
     language = subset[0:2] if subset[0:2] in languages else None
     correct_transcriptions = 0
     total = 0
-    transcribed_text = ''     #needed if no segments come
     results_ls_filtered = []
-    metadatas = []
+    
+    saved_row = Path(dir + subset + '_saved_row.pkl')
+    iteration_file = Path(dir + subset + '_saved_index.txt')
+    
+    start_iteration = 0
+    state_dict = None
+
+    # Determine the starting point based on streaming or local mode
+    if streamingvar:
+        if saved_row.is_file():
+            state_dict = open_current_row(subset)
+        else:
+            state_dict = ds.state_dict()
+            print('SAVED CHECKPOINT: ', state_dict)
+            ds.load_state_dict(state_dict)
+    else:
+        if iteration_file.is_file():
+            with open(iteration_file, 'rb') as f:
+                start_iteration = pickle.load(f)
 
     for i in tqdm(ds, desc=f"Processing {subset} Audio Samples"):
+        matched_row = {}
+        total += 1
+        if total < start_iteration:
+            continue
         # audio_dict = dict(i['audio']) #somehow i['audio'] gets empty {} after used in pipeline
         audio_array = i['audio']['array']
-        audio_dict = dict(i['audio'])  
+        
+        if streamingvar is True:
+            state_dict = ds.state_dict()
+            save_current_row(state_dict, subset)
 
         with torch.no_grad():
             try:
@@ -94,105 +128,52 @@ def making_transcription(subset, ds, model):
                 print(e)
                 # print(f"Problems with row: {i['id']}")
                 # sys.exit(1)
-
-            total += 1
+            
+            
             expected_text = preprocess_text(i['text'])
             for segment in segments:
                 transcribed_text = segment.text
 
             transcribed_text = preprocess_text(transcribed_text)
 
-            if transcribed_text == expected_text: # if texts match!
-                # matched = 1
+            if transcribed_text == expected_text:  # If texts match!
                 correct_transcriptions += 1
-            
                 results_ls_filtered.append(i['utt_id'])
                 save_temp(subset, results_ls_filtered)
-                metadatas.append({'id': i['id'], 'utt_id': i['utt_id'], 
-                                    'text': i['text'], 'audio': audio_dict})
+                audio_compressed = save_compressed_audio(audio_array, i['audio']['sampling_rate'])
+                matched_row = {'id': i['id'], 'utt_id': i['utt_id'], 'text': i['text'], 'audio': audio_compressed}
+
+                save_dict(matched_row, subset)
             
             accuracy = correct_transcriptions / total
-
-            # logging.info(f"Processed {total} samples. Current accuracy: {accuracy:.2%}")
             torch.cuda.empty_cache()
-            # gc.collect()
-            # break #just test all subsets
-            # state_dict = ds.state_dict()
-            if total > limit_rows:
-                break
+
+            # if total == limit_rows:
+            #     break
+        
+        # Save the current iteration number (always for local or stream)
+            with open(iteration_file, 'wb') as f:
+                pickle.dump(total, f)
       
+    # Calculate final accuracy and save results
     final_accuracy = correct_transcriptions / total
-    # logging.info(f"Final Accuracy: {final_accuracy:.2%}")
-    metadatas_ds = Dataset.from_list(metadatas)
-
-    # If needed, print the final accuracy
-    # print(f"Final Accuracy: {final_accuracy:.2%}")
-
     save_csv(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
-    save_ds(subset, metadatas_ds) # SAVE DICTIONARY TO DISK, REQUIRES SPACE
+    save_ds(subset)  # SAVE DICTIONARY TO DISK, REQUIRES SPACE
 
-def making_transcription2(subset, ds, model):     
-    # Configure logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    language = subset[0:2] if subset[0:2] in languages else None
-    correct_transcriptions = 0
-    total = 0
-    transcribed_text = ''     #needed if no segments come
-    results_ls_filtered = []
+def save_ds(subset):
     metadatas = []
-
-    # audio_dict = dict(i['audio']) #somehow i['audio'] gets empty {} after used in pipeline
-    audio_array = ds['audio']['array']
-    audio_dict = dict(ds['audio'])  
-
-    with torch.no_grad():
-        try:
-            segments, _ = model.transcribe(audio_array, beam_size=1, language=language)
-        except Exception as e: 
-            print(e)
-            # print(f"Problems with row: {i['id']}")
-            # sys.exit(1)
-
-        total += 1
-        expected_text = preprocess_text(ds['text'])
-        for segment in segments:
-            transcribed_text = segment.text
-
-        transcribed_text = preprocess_text(transcribed_text)
-
-        if transcribed_text == expected_text: # if texts match!
-            # matched = 1
-            correct_transcriptions += 1
-        
-            results_ls_filtered.append(ds['utt_id'])
-            # save_temp(subset, results_ls_filtered)
-            metadatas.append({'id': ds['id'], 'utt_id': ds['utt_id'], 
-                                'text': ds['text'], 'audio': audio_dict})
-            return ds
-        
-        accuracy = correct_transcriptions / total
-
-        # logging.info(f"Processed {total} samples. Current accuracy: {accuracy:.2%}")
-    #     torch.cuda.empty_cache()
-    #     # gc.collect()
-    #     # break #just test all subsets
-    #     # state_dict = ds.state_dict()
-        # if total > limit_rows:
-        #     break
-      
-    # final_accuracy = correct_transcriptions / total
-    # # logging.info(f"Final Accuracy: {final_accuracy:.2%}")
-    # metadatas_ds = Dataset.from_list(metadatas)
-
-    # If needed, print the final accuracy
-    # print(f"Final Accuracy: {final_accuracy:.2%}")
-
-    # save_csv(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
-    # save_ds(subset, metadatas_ds) # SAVE DICTIONARY TO DISK, REQUIRES SPACE
-
-
-def save_ds(subset, metadatas_ds):
-    metadatas_ds.save_to_disk(savedir + subset)
+    # Loading all objects from the file
+    with open(subset + '_data.pkl', 'rb') as file:
+        while True:
+            try:
+                metadatas.append(pickle.load(file))
+            except EOFError:
+                break
+    if metadatas[0] == {}:
+        print('No rows to save')
+    else:
+        loaded_data = Dataset.from_list(metadatas)
+        loaded_data.save_to_disk(savedir + subset)   
 
 def save_csv(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
@@ -218,6 +199,22 @@ def save_temp(subset, results_ls_filtered):
         
         print("Row written successfully")
 
+def save_compressed_audio(audio_data, sample_rate):
+    # Save audio data in compressed format (e.g., WAV or FLAC) in memory
+    buffer = io.BytesIO()
+    sf.write(buffer, audio_data, sample_rate, format='WAV', subtype='PCM_16')
+    return buffer.getvalue()
+
+
+def save_current_row(state_dict, subset):
+    with open(subset + '_saved_row.pkl', 'wb') as f:
+        pickle.dump(state_dict, f)
+
+def open_current_row(subset):
+    with open(subset + '_saved_row.pkl', 'rb') as f:
+        loaded_dict = pickle.load(f)
+        return loaded_dict
+
 def open_csv():
     # OPEN csv file to start reading from here and stream the dataset with these IDs only
     import csv
@@ -241,8 +238,13 @@ def open_csv():
     #     print(i)
     #     break
 
-def process_subset():
-    configs = ['sm000']
+def save_dict(matched_row, subset):
+    # Append the dictionary to the file
+    with open(subset + '_data.pkl', 'ab') as file:
+        pickle.dump(matched_row, file)
+
+def process_subset(subs):
+    configs = [subs]
                
 #                ,'es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
 # 'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
@@ -264,7 +266,21 @@ def process_subset():
 
 
 if __name__ == '__main__':
-    process_subset()
+    parser = argparse.ArgumentParser(
+        description="Subset, streaming T/F"
+    )
+    parser.add_argument("--sub", default='en100', type=str)
+    parser.add_argument('--stream', dest='stream', action='store_true',
+                    help='Set the stream value to True.')
+    parser.add_argument('--no-stream', dest='stream', action='store_false',
+                    help='Set the stream value to False.')
+    parser.set_defaults(stream=True)
+    args = parser.parse_args()
+
+    subset = args.sub
+    streamingvar = args.stream
+    
+    process_subset(subset)
     # configs = ['ar000', 'be000', 'bg000',
     #     'bh000', 'bi000', 'bm000', 'bn000', 'bo000', 'br000', 'bs000', 'ca000', 'co000', 'cr000', 'cs000', 'cy000', 
     #     'da000', 'de000', 'de100', 'de101', 'de102', 'dz000', 'ee000', 'el000', 'en000', 'en001', 'en002', 'en003', 'en004', 
