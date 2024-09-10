@@ -86,7 +86,7 @@ def load_model():
         feature_extractor=processor.feature_extractor,
         max_new_tokens=128,                                                      
         chunk_length_s=30,
-        batch_size=1,
+        batch_size=16,
         return_timestamps=False,
         torch_dtype=torch_dtype,
         device=device,
