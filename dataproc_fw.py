@@ -70,8 +70,10 @@ def load_model():
         device = "cuda:0" if torch.cuda.is_available() else "cpu"
         torch_dtype = torch.float16
 
-        model_id = "distil-whisper/distil-large-v3"
-        # model_id = "openai/whisper-large-v3"
+        if subset[0:2] == 'en':
+            model_id = "distil-whisper/distil-large-v3"
+        else:
+            model_id = "openai/whisper-large-v3"
 
         model = AutoModelForSpeechSeq2Seq.from_pretrained(
             model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, attn_implementation="sdpa", use_safetensors=True
@@ -94,8 +96,10 @@ def load_model():
         )
         return pipe
     else:
-        # model_size = "large-v3"
-        model_size = "distil-large-v3"
+        if subset[0:2] == 'en':
+            model_size = "distil-large-v3"
+        else:
+            model_size = "large-v3"
 
         # Run on GPU with FP16
         model = WhisperModel(model_size, device="cuda", compute_type="float16")
