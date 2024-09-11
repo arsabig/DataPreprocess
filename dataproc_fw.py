@@ -19,22 +19,21 @@ from logging import getLogger
 
 LOG = getLogger(__name__)
 LOG.setLevel(logging.WARNING)
-MODEL_MEMORY = 5000
-# from utils import get_total_gpu_memory
-       # Execute in parallel
-memory = torch.cuda.mem_get_info(device='cuda:0')[0]//1024 ** 2
-n_jobs = min(
-    max(
-        memory
-        // MODEL_MEMORY
-        if memory is not None
-        else 1,
-        1,
-    ),
-    cpu_count(),
-) 
+# MODEL_MEMORY = 5000
+# # from utils import get_total_gpu_memory
+#        # Execute in parallel
+# memory = torch.cuda.mem_get_info(device='cuda:0')[0]//1024 ** 2
+# n_jobs = min(
+#     max(
+#         memory
+#         // MODEL_MEMORY
+#         if memory is not None
+#         else 1,
+#         1,
+#     ),
+#     cpu_count(),
+# ) 
 # LOG.info(f"n_jobs automatically set to {n_jobs}, memory: {memory} MiB")
-
 # n_jobs = min(len(configs) // 16 + 1, n_jobs)
 
 limit_rows = 100 # limit for first x rows in the dataset
@@ -199,8 +198,11 @@ def making_transcription(ds):
       
     # Calculate final accuracy and save results
     final_accuracy = correct_transcriptions / total
-    save_results(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
-    save_ds(subset)  # SAVE DICTIONARY TO DISK, REQUIRES SPACE
+    try:
+        save_results(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
+        save_ds(subset)  # SAVE DICTIONARY TO DISK, REQUIRES SPACE
+    except Exception as e:
+        print(e)
 
 def save_ds(subset):
     metadatas = []
