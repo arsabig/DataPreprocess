@@ -8,6 +8,7 @@ import pickle
 import argparse
 import soundfile as sf
 import io
+import zipfile
 from pathlib import Path
 from multiprocessing import Pool, cpu_count, get_context
 from datasets import load_dataset, Dataset, Audio
@@ -36,7 +37,7 @@ LOG.setLevel(logging.WARNING)
 # LOG.info(f"n_jobs automatically set to {n_jobs}, memory: {memory} MiB")
 # n_jobs = min(len(configs) // 16 + 1, n_jobs)
 
-limit_rows = 100 # limit for first x rows in the dataset
+limit_rows = 100 # JUST FOR TESTING
 languages = [
     'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo', 'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 
     'es', 'et', 'eu', 'fa', 'fi', 'fo', 'fr', 'gl', 'gu', 'ha', 'haw', 'he', 'hi', 'hr', 'ht', 'hu', 'hy', 'id', 'is', 
@@ -45,7 +46,7 @@ languages = [
     'sl', 'sn', 'so', 'sq', 'sr', 'su', 'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tk', 'tl', 'tr', 'tt', 'uk', 'ur', 'uz', 
     'vi', 'yi', 'yo', 'zh', 'yue'
 ]
-savedir = r'E:\\yodas\\' #external HD
+diskdir = r'E:\\yodas\\' #external HD
 dir = os.getcwd() + "\\"
 cache_dir = r"E:/yodas/datasets"
 
@@ -189,6 +190,7 @@ def making_transcription(ds):
             accuracy = correct_transcriptions / total
             torch.cuda.empty_cache()
 
+            # JUST FOR TESTING
             # if total == limit_rows:
             #     break
         
@@ -200,46 +202,50 @@ def making_transcription(ds):
     final_accuracy = correct_transcriptions / total
     try:
         save_results(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
-        save_ds(subset)  # SAVE DICTIONARY TO DISK, REQUIRES SPACE
+        save_to_zip(open_pkl(subset), subset + '_data.zip')  # SAVE MATCHED FILES TO ZIP
     except Exception as e:
         print(e)
 
-def save_ds(subset):
-    metadatas = []
+def open_pkl(subset):
+    data_dict = []
     # Loading all objects from the file
     with open(subset + '_data.pkl', 'rb') as file:
         while True:
             try:
-                metadatas.append(pickle.load(file))
+                data_dict.append(pickle.load(file))
             except EOFError:
                 break
             except FileNotFoundError:
                 break
-    loaded_data = Dataset.from_list(metadatas)
-    loaded_data.save_to_disk(savedir + subset)
-    print('Dataset saved successfully')
+        return data_dict
 
 def save_results(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
     # import csv
-    with open(savedir + subset + '_'+ str(ct) + '_'+ str(tot) + '_'+ str(round(acc,2)) + '.txt', 'w') as f:
-        # Join the list elements into a single string with a newline character
-        data_to_write = '\n'.join(results_ls_filtered)
+    with open(diskdir + subset + '_'+ str(ct) + '_'+ str(tot) + '_'+ str(round(acc,2)) + '.txt', 'w') as f:
+        try:
+            # Join the list elements into a single string with a newline character
+            data_to_write = '\n'.join(results_ls_filtered)
         
-        # Write the data to the file
-        f.write(data_to_write)
+            # Write the data to the file
+            f.write(data_to_write)
         
-        print("Results file written successfully")
+            print("Results file written successfully")
+        except Exception as e:
+            print(e)            
 
 def save_temp(subset, results_ls_filtered):
-    # Save IDs to csv file to read later
-    with open(dir + subset + '.txt', 'w') as f:
-        data_to_write = '\n'.join(results_ls_filtered)
-        
-        # Write the data to the file
-        f.write(data_to_write)
-        
-        print("Row written successfully")
+    try:
+        # Save IDs to csv file to read later
+        with open(dir + subset + '.txt', 'w') as f:
+            data_to_write = '\n'.join(results_ls_filtered)
+            
+            # Write the data to the file
+            f.write(data_to_write)
+            
+            print("Row written successfully")
+    except Exception as e:
+        print(e)
 
 def save_compressed_audio(audio_data, sample_rate):
     # Save audio data in compressed format (e.g., WAV or FLAC) in memory
@@ -248,27 +254,36 @@ def save_compressed_audio(audio_data, sample_rate):
     return buffer.getvalue()
 
 def save_current_row(state_dict, subset):
-    with open(subset + '_saved_row.pkl', 'wb') as f:
-        pickle.dump(state_dict, f)
+    try:
+        with open(subset + '_saved_row.pkl', 'wb') as f:
+            pickle.dump(state_dict, f)
+    except Exception as e:
+        print(e)
 
 def open_current_row(subset):
-    with open(subset + '_saved_row.pkl', 'rb') as f:
-        loaded_dict = pickle.load(f)
-        return loaded_dict
+    try:
+        with open(subset + '_saved_row.pkl', 'rb') as f:
+            loaded_dict = pickle.load(f)
+            return loaded_dict
+    except Exception as e:
+        print(e)
 
     #Original dataset in streaming is filter only for the rows that matched
     # THIS LINE CAN BE USED AFTER ds = load_dataset('espnet/yodas'...
     # filtered_dataset = ds.filter(lambda x: x["id"] in results_ls_filtered)
 
 def save_dict(matched_row, subset):
-    # Append the dictionary to the file
-    with open(subset + '_data.pkl', 'ab') as file:
-        pickle.dump(matched_row, file)
+    try:
+        # Append the dictionary to the file
+        with open(subset + '_data.pkl', 'ab') as file:
+            pickle.dump(matched_row, file)
+    except Exception as e:
+        print(e)
 
 def process_subset(subs):
     configs = [subs]
 
-# BY SIZE            
+# BY HOURSE SIZE            
 #                ,'es102','es104','es105','es103','en108','en126','en107','en119','en106','es101','en122','en121','en120','en103',
 # 'en104','es100','en116','en101','en112','en113','ru104','ru102','en111','en118','en102','en117','en124','en109','en114','en115',
 # 'en125','en110','ru103','ru100','ru101','en105','en123','fr102','ru105','fr100','fr101','en004','ko101','pt100','pt102','en002',
@@ -286,6 +301,50 @@ def process_subset(subs):
 # 'sg000']
     
     Parallel(n_jobs=1, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
+
+def save_to_zip(data_dict, zip_filename, max_size=1 * 1024 * 1024 * 1024):
+    current_size = 0
+    folder_index = 1
+    audio_folder_name = f"{folder_index:08d}/audio"
+    text_filename = f"{folder_index:08d}/text.txt"
+    combined_text_content = ""
+
+    # Create an in-memory zip file
+    with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for sample in data_dict:
+            utt_id = sample['utt_id']
+            
+            # Prepare audio data (Assuming 'audio' is raw WAV data)
+            audio_data = sample['audio'] 
+            audio_wav_filename = f"{audio_folder_name}/{utt_id}.wav"
+
+            # Calculate size of the current audio file to track total size
+            audio_size = len(audio_data)
+
+            # Check if adding this audio will exceed the max size (1GB)
+            if current_size + audio_size > max_size:
+                # Write the current combined text file and start a new folder
+                zf.writestr(text_filename, combined_text_content)
+
+                # Reset combined text, increment folder, and reset size counter
+                folder_index += 1
+                audio_folder_name = f"{folder_index:08d}/audio"
+                text_filename = f"{folder_index:08d}/text.txt"
+                combined_text_content = ""
+                current_size = 0
+
+            # Add text entry for this audio
+            combined_text_content += f"{utt_id} {sample['text']}\n"
+
+            # Write the audio file to the appropriate folder
+            zf.writestr(audio_wav_filename, audio_data)
+
+            # Update the current size
+            current_size += audio_size
+
+        # Write the last text file (for the remaining audios)
+        if combined_text_content:
+            zf.writestr(text_filename, combined_text_content)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
