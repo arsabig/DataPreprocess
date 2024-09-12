@@ -30,7 +30,7 @@ The script accepts multiple command-line arguments for different configurations.
 
 ## Basic Command Example (Save to files)
 
-**python save_disk.py --sub=en100**
+**python save_todisk.py --sub=en100**
 
 ## Arguments
 
