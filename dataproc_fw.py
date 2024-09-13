@@ -191,8 +191,8 @@ def making_transcription(ds):
             torch.cuda.empty_cache()
 
             # JUST FOR TESTING
-            if total == limit_rows:
-                break
+            # if total == limit_rows:
+            #     break
         
         # Save the current iteration number (always for local or stream)
             with open(iteration_file, 'wb') as f:
