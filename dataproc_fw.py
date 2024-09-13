@@ -191,8 +191,8 @@ def making_transcription(ds):
             torch.cuda.empty_cache()
 
             # JUST FOR TESTING
-            # if total == limit_rows:
-            #     break
+            if total == limit_rows:
+                break
         
         # Save the current iteration number (always for local or stream)
             with open(iteration_file, 'wb') as f:
@@ -202,22 +202,28 @@ def making_transcription(ds):
     final_accuracy = correct_transcriptions / total
     try:
         save_results(subset, results_ls_filtered, correct_transcriptions, total, final_accuracy)
-        save_to_zip(open_pkl(subset), subset + '_data.zip')  # SAVE MATCHED FILES TO ZIP
+        save_to_zip_in_chunks(subset, diskdir + subset + '_data.zip')  # SAVE MATCHED FILES TO ZIP
     except Exception as e:
         print(e)
 
-def open_pkl(subset):
-    data_dict = []
-    # Loading all objects from the file
+def save_ds_in_chunks(subset, chunk_size=1000):
+    # Generator function to load objects from the pickle file in chunks
     with open(subset + '_data.pkl', 'rb') as file:
         while True:
+            data_chunk = []
             try:
-                data_dict.append(pickle.load(file))
+                for _ in range(chunk_size):
+                    data_chunk.append(pickle.load(file))
             except EOFError:
                 break
             except FileNotFoundError:
                 break
-        return data_dict
+            if data_chunk:
+                yield data_chunk
+
+        # Yield any remaining chunk even if it's less than chunk_size
+        if data_chunk:
+            yield data_chunk
 
 def save_results(subset, results_ls_filtered, ct, tot, acc):
     # Save IDs to csv file to read later
@@ -230,7 +236,7 @@ def save_results(subset, results_ls_filtered, ct, tot, acc):
             # Write the data to the file
             f.write(data_to_write)
         
-            print("Results file written successfully")
+            print("Results file written successfully (.txt)")
         except Exception as e:
             print(e)            
 
@@ -274,7 +280,7 @@ def open_current_row(subset):
 
 def save_dict(matched_row, subset):
     try:
-        # Append the dictionary to the file
+        # Append the dictionary to the angelile
         with open(subset + '_data.pkl', 'ab') as file:
             pickle.dump(matched_row, file)
     except Exception as e:
@@ -302,49 +308,59 @@ def process_subset(subs):
     
     Parallel(n_jobs=1, backend="multiprocessing")(delayed(load_ds)(subset) for subset in configs)
 
-def save_to_zip(data_dict, zip_filename, max_size=1 * 1024 * 1024 * 1024):
+def save_to_zip_in_chunks(subset, zip_filename, chunk_size=200000, max_size=1 * 1024 * 1024 * 1024):
     current_size = 0
     folder_index = 1
     audio_folder_name = f"{folder_index:08d}/audio"
     text_filename = f"{folder_index:08d}/text.txt"
     combined_text_content = ""
 
-    # Create an in-memory zip file
+    # Create a zip file
     with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for sample in data_dict:
-            utt_id = sample['utt_id']
-            
-            # Prepare audio data (Assuming 'audio' is raw WAV data)
-            audio_data = sample['audio'] 
-            audio_wav_filename = f"{audio_folder_name}/{utt_id}.wav"
+        for data_chunk in save_ds_in_chunks(subset, chunk_size):
+            for sample in data_chunk:
+                utt_id = sample['utt_id']
 
-            # Calculate size of the current audio file to track total size
-            audio_size = len(audio_data)
+                # Prepare audio data (Assuming 'audio' is raw WAV data)
+                audio_data = sample['audio']
+                audio_wav_filename = f"{audio_folder_name}/{utt_id}.wav"
 
-            # Check if adding this audio will exceed the max size (1GB)
-            if current_size + audio_size > max_size:
-                # Write the current combined text file and start a new folder
+                # Calculate size of the current audio file to track total size
+                audio_size = len(audio_data)
+
+                # Check if adding this audio will exceed the max size (1GB)
+                if current_size + audio_size > max_size:
+                    # Write the current combined text file and reset for the next folder
+                    if combined_text_content:
+                        zf.writestr(text_filename, combined_text_content)
+
+                    # Reset combined text, increment folder, and reset size counter
+                    folder_index += 1
+                    audio_folder_name = f"{folder_index:08d}/audio"
+                    text_filename = f"{folder_index:08d}/text.txt"
+                    combined_text_content = ""
+                    current_size = 0
+
+                # Add text entry for this audio
+                combined_text_content += f"{utt_id} {sample['text']}\n"
+
+                # Write the audio file to the appropriate folder
+                zf.writestr(audio_wav_filename, audio_data)
+
+                # Update the current size
+                current_size += audio_size
+
+            # After each chunk, save the current text file if it's not already written
+            if combined_text_content:
                 zf.writestr(text_filename, combined_text_content)
 
-                # Reset combined text, increment folder, and reset size counter
-                folder_index += 1
-                audio_folder_name = f"{folder_index:08d}/audio"
-                text_filename = f"{folder_index:08d}/text.txt"
-                combined_text_content = ""
-                current_size = 0
-
-            # Add text entry for this audio
-            combined_text_content += f"{utt_id} {sample['text']}\n"
-
-            # Write the audio file to the appropriate folder
-            zf.writestr(audio_wav_filename, audio_data)
-
-            # Update the current size
-            current_size += audio_size
-
-        # Write the last text file (for the remaining audios)
+        # Handle remaining files after processing full chunks
         if combined_text_content:
+            folder_index += 1
+            audio_folder_name = f"{folder_index:08d}/audio"
+            text_filename = f"{folder_index:08d}/text.txt"
             zf.writestr(text_filename, combined_text_content)
+    print("Zip file written successfully")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
