@@ -42,6 +42,10 @@ The script accepts multiple command-line arguments for different configurations.
 Execution Notes:  
 \- If running the script locally, ensure the dataset is properly saved and accessible on your system. Need to check in the code for the correct path of savedir, cache_dir.  
 \- If using streaming, ensure a stable internet connection as the data will be fetched during runtime.
+For **save_todisk** file:  
+\- Make sure to use the variable diskdir (disk directory) and provide the external disk location (for example "E:/yodas/datasets").  
+\- The chunk size when extracting the files is 200,000 which consumes almost 14GB of memory. In the case of running in slower computers, 
+**chunk_size** variable should be reduced to consume less memory.
 
 # 4\. Key Considerations
 

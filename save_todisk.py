@@ -2,12 +2,13 @@ import os
 import pickle
 import argparse
 import zipfile
+import logging
 
 diskdir = r'E:\\yodas\\'  # external HD
 dir = os.getcwd() + "\\"
 
 
-def save_ds_in_chunks(subset, chunk_size=1000):
+def save_ds_in_chunks(subset, chunk_size=200000):
     # Generator function to load objects from the pickle file in chunks
     with open(subset + '_data.pkl', 'rb') as file:
         while True:
@@ -16,27 +17,27 @@ def save_ds_in_chunks(subset, chunk_size=1000):
                 for _ in range(chunk_size):
                     data_chunk.append(pickle.load(file))
             except EOFError:
+                if data_chunk:  # Yield any remaining data in the last chunk
+                    yield data_chunk
                 break
             except FileNotFoundError:
                 break
             if data_chunk:
                 yield data_chunk
 
-        # Yield any remaining chunk even if it's less than chunk_size
-        if data_chunk:
-            yield data_chunk
 
-
-def save_to_zip_in_chunks(subset, zip_filename, chunk_size=1000, max_size=1 * 1024 * 1024 * 1024):
+def save_to_zip_in_chunks(subset, zip_filename, chunk_size=200000, max_size=1 * 1024 * 1024 * 1024):
     current_size = 0
     folder_index = 1
     audio_folder_name = f"{folder_index:08d}/audio"
-    text_filename = f"{folder_index:08d}/text.txt"
     combined_text_content = ""
 
     # Create a zip file
     with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zf:
         for data_chunk in save_ds_in_chunks(subset, chunk_size):
+            logging.basicConfig(level=logging.INFO)
+            logging.info(f"Processing folder {folder_index}...")
+
             for sample in data_chunk:
                 utt_id = sample['utt_id']
 
@@ -49,14 +50,14 @@ def save_to_zip_in_chunks(subset, zip_filename, chunk_size=1000, max_size=1 * 10
 
                 # Check if adding this audio will exceed the max size (1GB)
                 if current_size + audio_size > max_size:
-                    # Write the current combined text file and reset for the next folder
+                    # Write the current combined text file for the folder
+                    text_filename = f"{folder_index:08d}/text.txt"
                     if combined_text_content:
                         zf.writestr(text_filename, combined_text_content)
 
                     # Reset combined text, increment folder, and reset size counter
                     folder_index += 1
                     audio_folder_name = f"{folder_index:08d}/audio"
-                    text_filename = f"{folder_index:08d}/text.txt"
                     combined_text_content = ""
                     current_size = 0
 
@@ -69,16 +70,12 @@ def save_to_zip_in_chunks(subset, zip_filename, chunk_size=1000, max_size=1 * 10
                 # Update the current size
                 current_size += audio_size
 
-            # After each chunk, save the current text file if it's not already written
-            if combined_text_content:
-                zf.writestr(text_filename, combined_text_content)
-
-        # Handle remaining files after processing full chunks
+        # Write the last remaining text file for the final folder
+        text_filename = f"{folder_index:08d}/text.txt"
         if combined_text_content:
-            folder_index += 1
-            audio_folder_name = f"{folder_index:08d}/audio"
-            text_filename = f"{folder_index:08d}/text.txt"
             zf.writestr(text_filename, combined_text_content)
+
+    print("Zip file written successfully")
 
 
 if __name__ == '__main__':
