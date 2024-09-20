@@ -3,8 +3,8 @@ import pandas as pd
 import datetime
 
 # You need to set up your API key from Google Developers Console
-API_KEY = 'AIzaSyACEZIUdF4PmpjAqym7bw-w7ytvllNvF8A'
-# API_KEY = 'AIzaSyDunNZekBfqoyKmzRGl7m2-y4V2sWJwR5Q'
+API_KEY = ''
+# API_KEY = ''
 YOUTUBE_API_SERVICE_NAME = 'youtube'
 YOUTUBE_API_VERSION = 'v3'
 country = 'FR'
